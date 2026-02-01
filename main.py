@@ -111,7 +111,7 @@ def save_checkpoint(model_state, classes, image_size, model_name):
 
 
 # -----------------------------------------------------------
-# PLOT LOSS CURVES
+# PLOT INDIVIDUAL LOSS CURVES
 # -----------------------------------------------------------
 def plot_loss_curves(train_losses, val_losses, model_name):
     model_dir = ARTIFACT_DIR / model_name
@@ -129,6 +129,27 @@ def plot_loss_curves(train_losses, val_losses, model_name):
     plt.grid(True)
     plt.savefig(model_dir / "loss_curves.png")
     plt.close()
+
+
+# -----------------------------------------------------------
+# PLOT COMBINED LOSS CURVES (ALL MODELS)
+# -----------------------------------------------------------
+def plot_combined_loss_curves(all_val_losses):
+    epochs = range(1, len(next(iter(all_val_losses.values()))) + 1)
+
+    plt.figure(figsize=(8, 6))
+    for model_name, val_losses in all_val_losses.items():
+        plt.plot(epochs, val_losses, marker="o", label=model_name)
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Validation Loss")
+    plt.title("Validation Loss Comparison (ANN vs CNN vs ResNet‑18)")
+    plt.legend()
+    plt.grid(True)
+
+    ARTIFACT_DIR.mkdir(exist_ok=True)
+    plt.savefig(ARTIFACT_DIR / "combined_loss_curves.png")
+    plt.show()
 
 
 # -----------------------------------------------------------
@@ -211,7 +232,7 @@ def train_model(model_name, ModelClass, num_classes,
             )
 
     plot_loss_curves(train_losses, val_losses, model_name)
-    return best_acc
+    return best_acc, val_losses
 
 
 # -----------------------------------------------------------
@@ -237,9 +258,10 @@ def main():
     }
 
     results = {}
+    all_val_losses = {}
 
     for model_name, ModelClass in MODELS.items():
-        acc = train_model(
+        acc, val_losses = train_model(
             model_name,
             ModelClass,
             num_classes,
@@ -249,11 +271,13 @@ def main():
             classes,
         )
         results[model_name] = acc
+        all_val_losses[model_name] = val_losses
+
+    plot_combined_loss_curves(all_val_losses)
 
     best_model = max(results, key=results.get)
     print("\n🏆 BEST MODEL:", best_model)
 
-    # Precision / Recall / F1 only for best model
     if best_model == "ResNetTransfer":
         model = models.ResNetTransfer(num_classes=num_classes).to(device)
         checkpoint = torch.load(
